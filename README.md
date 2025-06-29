@@ -1,1 +1,1 @@
-# customer-risk-score-engine
+# customer-credit-score-engine
