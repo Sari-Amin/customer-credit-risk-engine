@@ -1,5 +1,7 @@
+import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 import numpy as np
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 class AggregateFeatures(BaseEstimator, TransformerMixin):
@@ -40,7 +42,6 @@ class AggregateFeatures(BaseEstimator, TransformerMixin):
 
         # Merge with original data
         df = df.merge(agg, on=self.customer_id_col, how='left')
-
         return df
 
 
@@ -64,7 +65,6 @@ class DateFeatures(BaseEstimator, TransformerMixin):
 
         # Optional: drop original time column
         df = df.drop(columns=[self.time_col])
-
         return df
     
 
@@ -84,7 +84,7 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
                 le.fit(X[col])
                 self.encoders[col] = le
             elif self.encoding == 'onehot':
-                ohe = OneHotEncoder(sparse=False, handle_unknown='ignore')
+                ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
                 ohe.fit(X[[col]])
                 self.encoders[col] = ohe
 
@@ -92,6 +92,7 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         df = X.copy()
+
         for col in self.columns:
             encoder = self.encoders[col]
             if self.encoding == 'label':
@@ -109,24 +110,53 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         return df
 
 
+class DropUninformativeCols(BaseEstimator, TransformerMixin):
+    def __init__(self, drop_cols=None, id_threshold=0.95):
+        self.drop_cols = drop_cols
+        self.id_threshold = id_threshold
+        self.to_drop_ = []
+
+    def fit(self, X, y=None):
+        df = X.copy()
+
+        # Drop manually specified columns
+        if self.drop_cols:
+            self.to_drop_.extend(self.drop_cols)
+
+        # Drop columns with 1 unique value
+        self.to_drop_.extend(df.columns[df.nunique() <= 1].tolist())
+
+        # Drop columns with too many unique values 
+        for col in df.columns:
+            if df[col].nunique() / len(df) > self.id_threshold:
+                self.to_drop_.append(col)
+
+        # Drop duplicates
+        self.to_drop_ = list(set(self.to_drop_))
+
+        return self
+
+    def transform(self, X):
+        return X.drop(columns=self.to_drop_, errors='ignore')
+
+
+
 
 def build_pipeline():
+    pipeline = Pipeline(steps=[
+        ('date', DateFeatures()),
+        ('drop_cols', DropUninformativeCols(
+            drop_cols=['TransactionId', 'CurrencyCode', 'CountryCode', 'SubscriptionId', 'BatchId']
+        )),
+        ('aggregate', AggregateFeatures()),
+        ('categorical', CategoricalEncoder(
+            columns=['ProductCategory', 'ChannelId'], encoding='onehot'
+        )),
+        # Optional: Add scaling
+        # ('scaler', StandardScaler())  # for linear models
+    ])
+    return pipeline
 
-    return None
-
-
-#test
-import pandas as pd
-import sys
-
-sys.path.append("../")
-df = pd.read_csv("data/raw/data.csv")
-
-agg = AggregateFeatures()
-df_transformed = agg.fit_transform(df)
-print(df_transformed.head())
-
-date_pipe = DateFeatures()
-df_time = date_pipe.fit_transform(df)
-
-print(df_time[['txn_hour', 'txn_day', 'txn_month', 'txn_weekday']].head())
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+    pipe = build_pipeline()
+    return pipe.fit_transform(df)
