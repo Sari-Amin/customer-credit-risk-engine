@@ -26,3 +26,9 @@ secrets.yaml
 *.pem
 *.token
 *.session
+
+# Mlflow
+mlruns/
+mlartifacts/
+outputs/
+mlruns.db
