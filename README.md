@@ -29,3 +29,6 @@ Using a proxy is often a necessity in emerging markets or alt-data scenarios, bu
 | **Monitoring & Maintenance** | Easier | Harder |
 
 In regulated financial environments, interpretability is typically prioritized. However, with tools like SHAP and LIME, the performance vs. transparency gap is narrowing, allowing a balance between accuracy and explainability.
+
+![CI](https://github.com/Sari-Amin/customer-credit-score-engine/actions/workflows/ci.yml/badge.svg)
+
